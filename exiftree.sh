@@ -10,17 +10,17 @@ SRC="$1"
 DST="$2"
 DB="${DST}/.imported_sha256.txt"
 
-[[ ! -d "$SRC" ]] && { echo "Source inexistante: $SRC"; exit 1; }
+[[ ! -d "$SRC" ]] && { echo "Source does not exist: $SRC"; exit 1; }
 mkdir -p "$DST"
 touch "$DB"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# Formats photo+vidéo (insensible à la casse)
+# Photo/video formats (case-insensitive)
 REGEX='.*\.(jpe?g|png|gif|webp|heic|heif|tif|tiff|bmp|cr2|mp4|mov|m4v|mkv|avi|3gp|wmv|flv|webm|mts|m2ts|ts|vob|mpg|mpeg|mpe|asf|ogv|mxf)$'
 
-# Charge la base de dédup
+# Load deduplication database
 declare -A seen
 while IFS= read -r line; do
   [[ -z "$line" ]] && continue
@@ -32,7 +32,7 @@ mapfile -d '' files < <(
 )
 
 total="${#files[@]}"
-(( total == 0 )) && { echo "Aucun fichier à traiter."; exit 0; }
+(( total == 0 )) && { echo "No files to process."; exit 0; }
 
 start_epoch="$(date +%s)"
 
@@ -60,7 +60,7 @@ show_progress() {
 import_one() {
   local f="$1" input="$1" lower="${f,,}"
 
-  # CR2 -> JPEG (darktable, qualité 95, TMP) sans toucher originals
+  # CR2 -> JPEG (darktable, quality 95, TMP) without touching originals
   if [[ "$lower" == *.cr2 ]]; then
     local sha_src jpg
     sha_src="$(sha256sum "$f" | awk '{print $1}')"
@@ -77,7 +77,7 @@ import_one() {
     input="$jpg"
   fi
 
-  # Déduplication (hash sur le fichier importé)
+  # Deduplication (hash on the imported file)
   local sha
   sha="$(sha256sum "$input" | awk '{print $1}')"
   if [[ -n "${seen[$sha]+x}" ]]; then
@@ -85,7 +85,7 @@ import_one() {
     return
   fi
 
-  # Date “parano”: EXIF/QuickTime sinon mtime
+  # Date fallback: EXIF/QuickTime otherwise mtime
   local dt dir base
   dt="$(pick_datetime "$input" || true)"
   if [[ -z "$dt" ]]; then
@@ -97,7 +97,7 @@ import_one() {
   base="${dt#* }"
   mkdir -p "$dir"
 
-  # Nom de fichier + compteur anti-collision
+  # Filename + collision counter
   local ext out i=0
   ext="${input##*.}"; ext="${ext,,}"
   out="${dir}/${base}.${ext}"
@@ -106,7 +106,7 @@ import_one() {
     out="${dir}/${base}-${i}.${ext}"
   done
 
-  # Copie vers chemin exact
+  # Copy to final path
   if ! exiftool -P -m -q -q -api QuickTimeUTC=1 -o "$out" "$input"; then
     skip_invalid=$((skip_invalid+1))
     return
@@ -117,7 +117,7 @@ import_one() {
   imported=$((imported+1))
 }
 
-echo "Fichiers détectés: $total"
+echo "Files detected: $total"
 for f in "${files[@]}"; do
   processed=$((processed+1))
   show_progress "$f"
@@ -125,12 +125,11 @@ for f in "${files[@]}"; do
 done
 
 echo
-echo "Résumé :"
+echo "Summary:"
 echo "  Total                     : $total"
 echo "  Imported                  : $imported"
 echo "  Skipped (Duplicate)       : $skip_dup"
 echo "  Skipped (ConversionFailed): $skip_convfail"
 echo "  Skipped (InvalidFile)     : $skip_invalid"
-echo "  CR2 convertis             : $converted"
-echo "  Sans EXIF (mtime fallback): $nodate"
-
+echo "  CR2 converted             : $converted"
+echo "  No EXIF (mtime fallback)  : $nodate"
