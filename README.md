@@ -8,7 +8,7 @@ Key behaviors:
 - Uses `exiftool` to read the first available timestamp from `DateTimeOriginal`, `MediaCreateDate`, `CreateDate`, or `TrackCreateDate`.
 - Falls back to file mtime if no metadata date is present.
 - Creates destination paths like `DEST/YYYY/MM/DD/YYYYMMDD_HHMMSS.ext` by default.
-- Can optionally create month folders with names (e.g. `January`) and day folders like `Monday 03 March` in English or French.
+- Can optionally create month folders with names (e.g. `January`) and day folders like `Monday 03 March` in English or French (French names are unaccented in folder paths).
 - If a filename already exists, appends `-1`, `-2`, etc.
 - Deduplicates using SHA-256 and stores the hashes in `DEST/.imported_sha256.txt`.
 - Converts Canon CR2 files to JPEG via `darktable-cli`, preserves tags, and imports the JPEG.

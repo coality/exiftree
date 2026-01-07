@@ -274,17 +274,17 @@ build_dir() {
       month_num="$(date -d "$date_input" +%m)"
       case "$month_num" in
         01) month="janvier" ;;
-        02) month="février" ;;
+        02) month="fevrier" ;;
         03) month="mars" ;;
         04) month="avril" ;;
         05) month="mai" ;;
         06) month="juin" ;;
         07) month="juillet" ;;
-        08) month="août" ;;
+        08) month="aout" ;;
         09) month="septembre" ;;
         10) month="octobre" ;;
         11) month="novembre" ;;
-        12) month="décembre" ;;
+        12) month="decembre" ;;
       esac
     else
       month="$(LC_TIME="$LOCALE" date -d "$date_input" +%B)"
@@ -310,17 +310,17 @@ build_dir() {
       esac
       case "$month_num" in
         01) month_fr="janvier" ;;
-        02) month_fr="février" ;;
+        02) month_fr="fevrier" ;;
         03) month_fr="mars" ;;
         04) month_fr="avril" ;;
         05) month_fr="mai" ;;
         06) month_fr="juin" ;;
         07) month_fr="juillet" ;;
-        08) month_fr="août" ;;
+        08) month_fr="aout" ;;
         09) month_fr="septembre" ;;
         10) month_fr="octobre" ;;
         11) month_fr="novembre" ;;
-        12) month_fr="décembre" ;;
+        12) month_fr="decembre" ;;
       esac
       day="${weekday} ${day_num} ${month_fr}"
     else
