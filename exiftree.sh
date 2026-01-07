@@ -1,10 +1,69 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage() {
+  cat <<'EOF'
+Usage: exiftree.sh [options] <SOURCE_DIR> <DEST_DIR>
+
+Options:
+  --month-name         Use month name folders instead of numeric month (e.g. January).
+  --day-name           Use day folders like "Monday 03 March".
+  --lang <fr|en>       Locale for month/day names (default: en).
+  -h, --help           Show this help message.
+EOF
+}
+
+MONTH_NAME=0
+DAY_NAME=0
+LANGUAGE="en"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --month-name)
+      MONTH_NAME=1
+      shift
+      ;;
+    --day-name)
+      DAY_NAME=1
+      shift
+      ;;
+    --lang)
+      LANGUAGE="${2:-}"
+      shift 2
+      ;;
+    --lang=*)
+      LANGUAGE="${1#*=}"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Unknown option: $1"
+      usage
+      exit 1
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
 if [[ $# -ne 2 ]]; then
-  echo "Usage: $0 <SOURCE_DIR> <DEST_DIR>"
+  usage
   exit 1
 fi
+
+case "$LANGUAGE" in
+  en) LOCALE="en_US.UTF-8" ;;
+  fr) LOCALE="fr_FR.UTF-8" ;;
+  *) echo "Unsupported language: $LANGUAGE (use fr or en)"; exit 1 ;;
+esac
 
 SRC="$1"
 DST="$2"
@@ -203,6 +262,27 @@ show_progress() {
     "$imported" "$skip_dup" "$skip_convfail" "$skip_invalid" "$nodate" "$1"
 }
 
+build_dir() {
+  local date_part="$1"
+  local date_input="${date_part//\//-}"
+  local year month day
+
+  year="$(date -d "$date_input" +%Y)"
+  if (( MONTH_NAME )); then
+    month="$(LC_TIME="$LOCALE" date -d "$date_input" +%B)"
+  else
+    month="$(date -d "$date_input" +%m)"
+  fi
+
+  if (( DAY_NAME )); then
+    day="$(LC_TIME="$LOCALE" date -d "$date_input" '+%A %d %B')"
+  else
+    day="$(date -d "$date_input" +%d)"
+  fi
+
+  echo "${DST}/${year}/${month}/${day}"
+}
+
 import_one() {
   local f="$1" input="$1" lower="${f,,}"
   local json
@@ -238,14 +318,15 @@ import_one() {
   fi
 
   # Date fallback: EXIF/QuickTime otherwise mtime
-  local dt dir base
+  local dt dir base date_part
   dt="$(pick_datetime "$input" || true)"
   if [[ -z "$dt" ]]; then
     nodate=$((nodate+1))
     dt="$(date -d "@$(stat -c '%Y' "$input")" '+%Y/%m/%d %Y%m%d_%H%M%S')"
   fi
 
-  dir="${DST}/${dt%% *}"
+  date_part="${dt%% *}"
+  dir="$(build_dir "$date_part")"
   base="${dt#* }"
   mkdir -p "$dir"
 
