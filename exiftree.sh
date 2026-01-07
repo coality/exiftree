@@ -257,9 +257,17 @@ PY
 }
 
 show_progress() {
-  printf "\r[%3d%%] %d/%d imported:%d dup:%d convFail:%d invalid:%d noEXIF:%d %s" \
+  local elapsed eta_seconds eta_display
+  elapsed=$(( $(date +%s) - start_epoch ))
+  if (( processed > 0 )); then
+    eta_seconds=$(( (total - processed) * elapsed / processed ))
+    eta_display="$(printf '%02d:%02d:%02d' $((eta_seconds/3600)) $((eta_seconds%3600/60)) $((eta_seconds%60)))"
+  else
+    eta_display="--:--:--"
+  fi
+  printf "\r[%3d%%] %d/%d imported:%d dup:%d convFail:%d invalid:%d noEXIF:%d ETA:%s %s" \
     $((processed*100/total)) "$processed" "$total" \
-    "$imported" "$skip_dup" "$skip_convfail" "$skip_invalid" "$nodate" "$1"
+    "$imported" "$skip_dup" "$skip_convfail" "$skip_invalid" "$nodate" "$eta_display" "$1"
 }
 
 build_dir() {
