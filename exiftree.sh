@@ -269,13 +269,63 @@ build_dir() {
 
   year="$(date -d "$date_input" +%Y)"
   if (( MONTH_NAME )); then
-    month="$(LC_TIME="$LOCALE" date -d "$date_input" +%B)"
+    if [[ "$LANGUAGE" == "fr" ]]; then
+      local month_num
+      month_num="$(date -d "$date_input" +%m)"
+      case "$month_num" in
+        01) month="janvier" ;;
+        02) month="février" ;;
+        03) month="mars" ;;
+        04) month="avril" ;;
+        05) month="mai" ;;
+        06) month="juin" ;;
+        07) month="juillet" ;;
+        08) month="août" ;;
+        09) month="septembre" ;;
+        10) month="octobre" ;;
+        11) month="novembre" ;;
+        12) month="décembre" ;;
+      esac
+    else
+      month="$(LC_TIME="$LOCALE" date -d "$date_input" +%B)"
+    fi
   else
     month="$(date -d "$date_input" +%m)"
   fi
 
   if (( DAY_NAME )); then
-    day="$(LC_TIME="$LOCALE" date -d "$date_input" '+%A %d %B')"
+    if [[ "$LANGUAGE" == "fr" ]]; then
+      local day_num weekday_num weekday month_num month_fr
+      day_num="$(date -d "$date_input" +%d)"
+      weekday_num="$(date -d "$date_input" +%u)"
+      month_num="$(date -d "$date_input" +%m)"
+      case "$weekday_num" in
+        1) weekday="lundi" ;;
+        2) weekday="mardi" ;;
+        3) weekday="mercredi" ;;
+        4) weekday="jeudi" ;;
+        5) weekday="vendredi" ;;
+        6) weekday="samedi" ;;
+        7) weekday="dimanche" ;;
+      esac
+      case "$month_num" in
+        01) month_fr="janvier" ;;
+        02) month_fr="février" ;;
+        03) month_fr="mars" ;;
+        04) month_fr="avril" ;;
+        05) month_fr="mai" ;;
+        06) month_fr="juin" ;;
+        07) month_fr="juillet" ;;
+        08) month_fr="août" ;;
+        09) month_fr="septembre" ;;
+        10) month_fr="octobre" ;;
+        11) month_fr="novembre" ;;
+        12) month_fr="décembre" ;;
+      esac
+      day="${weekday} ${day_num} ${month_fr}"
+    else
+      day="$(LC_TIME="$LOCALE" date -d "$date_input" '+%A %d %B')"
+    fi
   else
     day="$(date -d "$date_input" +%d)"
   fi
