@@ -51,6 +51,152 @@ pick_datetime() {
   | awk 'NF{print; exit}'
 }
 
+find_takeout_json() {
+  local f="$1" dir name base ext stripped
+  dir="$(dirname "$f")"
+  name="$(basename "$f")"
+  base="${name%.*}"
+  ext="${name##*.}"
+
+  local candidates=(
+    "$dir/$name.json"
+    "$dir/$name.supplemental-metadata.json"
+    "$dir/$base.json"
+    "$dir/$base.supplemental-metadata.json"
+  )
+
+  if [[ "$base" == *-edited* ]]; then
+    stripped="${base%-edited*}"
+    candidates+=(
+      "$dir/$stripped.${ext}.json"
+      "$dir/$stripped.${ext}.supplemental-metadata.json"
+      "$dir/$stripped.json"
+      "$dir/$stripped.supplemental-metadata.json"
+    )
+  fi
+
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "$candidate" ]]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+json_exif_args() {
+  local json="$1"
+  python3 - "$json" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+
+path = sys.argv[1]
+try:
+    with open(path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+except Exception:
+    sys.exit(0)
+
+def emit(tag, value):
+    if value is None:
+        return
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return
+    print(f"-{tag}={value}")
+
+def get_timestamp(*keys):
+    for key in keys:
+        block = data.get(key) or {}
+        ts = block.get("timestamp")
+        if ts:
+            try:
+                return int(ts)
+            except ValueError:
+                continue
+    return None
+
+ts = get_timestamp("photoTakenTime", "creationTime", "photoLastModifiedTime")
+if ts is not None:
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y:%m:%d %H:%M:%S")
+    for tag in (
+        "DateTimeOriginal",
+        "CreateDate",
+        "ModifyDate",
+        "MediaCreateDate",
+        "TrackCreateDate",
+    ):
+        emit(tag, dt)
+
+title = data.get("title")
+description = data.get("description")
+emit("Title", title)
+emit("ObjectName", title)
+emit("XMP:Title", title)
+emit("Description", description)
+emit("ImageDescription", description)
+emit("Caption-Abstract", description)
+emit("XMP:Description", description)
+
+make = data.get("cameraMake")
+model = data.get("cameraModel")
+lens = data.get("lensModel")
+emit("Make", make)
+emit("Model", model)
+emit("LensModel", lens)
+
+focal = data.get("focalLength")
+aperture = data.get("apertureFNumber")
+iso = data.get("isoEquivalent")
+exposure = data.get("exposureTime")
+emit("FocalLength", focal)
+emit("FNumber", aperture)
+emit("ISO", iso)
+emit("ExposureTime", exposure)
+
+def pick_geo():
+    for key in ("geoDataExif", "geoData"):
+        geo = data.get(key) or {}
+        lat = geo.get("latitude")
+        lon = geo.get("longitude")
+        alt = geo.get("altitude")
+        try:
+            lat_f = float(lat)
+            lon_f = float(lon)
+        except (TypeError, ValueError):
+            continue
+        if abs(lat_f) < 1e-6 and abs(lon_f) < 1e-6:
+            continue
+        return lat_f, lon_f, alt
+    return None
+
+geo = pick_geo()
+if geo:
+    lat, lon, alt = geo
+    emit("GPSLatitude", lat)
+    emit("GPSLongitude", lon)
+    if alt is not None:
+        emit("GPSAltitude", alt)
+
+people = data.get("people") or []
+for person in people:
+    name = None
+    if isinstance(person, dict):
+        name = person.get("name")
+    elif isinstance(person, str):
+        name = person
+    if name:
+        print(f"-Keywords+={name}")
+
+software = data.get("software")
+emit("Software", software)
+PY
+}
+
 show_progress() {
   printf "\r[%3d%%] %d/%d imported:%d dup:%d convFail:%d invalid:%d noEXIF:%d %s" \
     $((processed*100/total)) "$processed" "$total" \
@@ -59,6 +205,7 @@ show_progress() {
 
 import_one() {
   local f="$1" input="$1" lower="${f,,}"
+  local json
 
   # CR2 -> JPEG (darktable, quality 95, TMP) without touching originals
   if [[ "$lower" == *.cr2 ]]; then
@@ -83,6 +230,11 @@ import_one() {
   if [[ -n "${seen[$sha]+x}" ]]; then
     skip_dup=$((skip_dup+1))
     return
+  fi
+
+  json="$(find_takeout_json "$f" || true)"
+  if [[ -n "$json" ]]; then
+    exiftool -q -q -m -overwrite_original -@ <(json_exif_args "$json") "$input" || true
   fi
 
   # Date fallback: EXIF/QuickTime otherwise mtime
